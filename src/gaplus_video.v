@@ -106,7 +106,7 @@ wire       BGOPQ = (CLT0_D!=4'hF);
 //----------------------------------------
 wire [7:0] SPCOL =  CLT1_D;
 wire       SPOPQ = (CLT1_D!=8'hFF);
-
+wire       oVB;
 GAPLUS_SPRITE sprite
 (
 	VCLKx4,

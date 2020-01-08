@@ -68,7 +68,7 @@ wire		VCLK_x4  = CLK25M;
 wire		VCLK_x2  = CLK12M5;
 wire		VCLK_x1  = CLK6M25;
 
-assign	VCLKx2   = VCLK_x2;
+//assign	VCLKx2   = VCLK_x2;
 
 wire		CPUCLKx4 = CLK6M25;
 wire		CPUCLKx2 = CLK3M125;
