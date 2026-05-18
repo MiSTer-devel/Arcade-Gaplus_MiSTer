@@ -197,11 +197,15 @@ localparam CONF_STR = {
 	"OG,Round Advance,Off,On;",
 	"OH,Demo Sound,On,Off;",
 	//"OJ,Cabinet,Upright,Cocktail;",
+	"OL,Flip,Off,On;",
+	"-;",
+	"P1,Pause options;",
+	"P1OP,Pause when OSD is open,On,Off;",
 	"-;",
 	"OI,Service Mode,Off,On;",
 	"-;",
 	"R0,Reset;",
-	"J1,Fire,Start 1P,Start 2P,Coin;",
+	"J1,Fire,Start 1P,Start 2P,Coin,Pause;",
 	"V,v",`BUILD_DATE
 };
 
@@ -263,6 +267,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 
 //wire bCabinet  = status[19];
+wire bFlip    	= status[21];
 wire bCabinet  = 1'b0;	// (upright only)
 
 wire m_up2     = joystk2[3];
@@ -282,6 +287,7 @@ wire m_trig11  = joystk1[4] | (bCabinet ? 1'b0 : m_trig21);
 
 wire m_coin1   = joystk1[7];
 wire m_coin2   = joystk2[7];
+wire m_pause_btn = joystk1[8] | joystk2[8];
 
 wire no_rotate = status[2] | direct_video;
 
@@ -340,6 +346,30 @@ assign AUDIO_S = 0; // unsigned PCM
 
 wire iRST = RESET | status[0] | buttons[1] | ioctl_download;
 
+reg pause_btn_d;
+reg pause_latch;
+reg [19:0] pause_db;
+
+wire pause_btn = m_pause_btn & ~OSD_STATUS;
+
+always @(posedge clk_sys or posedge iRST) begin
+    if(iRST) begin
+        pause_btn_d <= 1'b0;
+        pause_latch <= 1'b0;
+        pause_db    <= 20'd0;
+    end else begin
+        pause_btn_d <= pause_btn;
+
+        if(pause_db != 0)
+            pause_db <= pause_db - 1'b1;
+
+        if((pause_db == 0) && pause_btn && ~pause_btn_d) begin
+            pause_latch <= ~pause_latch;
+            pause_db    <= 20'd480000;
+        end
+    end
+end
+
 wire  [1:0] COIA = 2'b00;				// 1coin/1credit
 wire  [1:0] COIB = 2'b00;				// 1coin/1credit
 
@@ -359,6 +389,8 @@ wire  [4:0]	INP0 = { m_trig11, m_left1, m_down1, m_right1, m_up1 };
 wire  [4:0]	INP1 = { m_trig21, m_left2, m_down2, m_right2, m_up2 };
 wire  [2:0] INP2 = { (m_coin1|m_coin2), m_start2, m_start1 };
 
+wire osd_pause  = OSD_STATUS & ~status[25];
+wire pause_req  = osd_pause | pause_latch;
 
 wire  [7:0] oSND;
 
@@ -366,6 +398,8 @@ FPGA_GAPLUS GameCore (
 	.RESET(iRST),.MCLK(clk_48M),
 	.PH(HPOS),.PV(VPOS),.PCLK(PCLK),.POUT(POUT),
 	.SOUT(oSND),
+	.FLIP(bFlip),
+	.PAUSE(pause_req),
 
 	.INP0(INP0),.INP1(INP1),.INP2(INP2),
 	.DSW0(DSW0),.DSW1(DSW1),.DSW2(DSW2),

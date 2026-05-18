@@ -9,6 +9,7 @@ module GAPLUS_STARGEN
 	input       RESET,
 
 	input       VB,
+	input       PAUSE,
 
 	input [4:0]	C1,
 	input [4:0]	C2,
@@ -77,11 +78,12 @@ always @ ( posedge VCLK or posedge RESET ) begin
 
 				vbtrig <= 0;
 			end
-
-			if ( sp1 ) begin sLFSR1 <= LFSR(sLFSR1,~sp1d); sp1 <= sp1-1; end
-			if ( sp2 ) begin sLFSR2 <= LFSR(sLFSR2,~sp2d); sp2 <= sp2-1; end
-			if ( sp3 ) begin sLFSR3 <= LFSR(sLFSR3,~sp3d); sp3 <= sp3-1; end
-
+			
+			if (!PAUSE) begin
+				if ( sp1 ) begin sLFSR1 <= LFSR(sLFSR1,~sp1d); sp1 <= sp1-1; end
+				if ( sp2 ) begin sLFSR2 <= LFSR(sLFSR2,~sp2d); sp2 <= sp2-1; end
+				if ( sp3 ) begin sLFSR3 <= LFSR(sLFSR3,~sp3d); sp3 <= sp3-1; end
+			end
 		end
 
 	end

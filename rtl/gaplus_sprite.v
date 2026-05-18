@@ -10,6 +10,7 @@ module GAPLUS_SPRITE
 
 	input  [8:0]  HPOS,
 	input  [8:0]  VPOS,
+	input         FLIP,
 
 	input         HB,
 	input			  VB,
@@ -37,11 +38,14 @@ wire [8:0]  lwd;
 
 wire [8:0]	dout;
 
-GAPLUS_SPRITE_REGSCAN scan( VCLKx4, HB, VPOS, SPRA_A, SPRA_D, wwclk, wrwad, wrwd0, wrwd1, wrwe, vpr ); 
+GAPLUS_SPRITE_REGSCAN scan(.VCLKx4(VCLKx4), .HB(HB), .VPOS(VPOS), .FLIP(FLIP), .SPRA_A(SPRA_A), .SPRA_D(SPRA_D), .wwclk(wwclk), .wrwad(wrwad), .wrwd0(wrwd0), .wrwd1(wrwd1), .wrwe(wrwe), .vpr(vpr)); 
 GAPLUS_SPRITE_WRAM    wram( wwclk, wrwad, wrwd0, wrwd1, wrwe, wrclk, wrrad, spra0, spra1 );
-GAPLUS_SPRITE_REND    rend( VCLK, HB, vpr, spra0, spra1, wrclk, wrrad, SPCH_A, SPCH_D, vpw, lwp, lwd, lwe );
-GAPLUS_SPRITE_LBUF    lbuf( VCLK, vpw, lwe, lwp, lwd, HPOS, dout );
+GAPLUS_SPRITE_REND rend(.VCLK(VCLK), .HB(HB), .vpr(vpr), .spra0(spra0), .spra1(spra1), .FLIP(FLIP), .wrclk(wrclk), .wrrad(wrrad), .SPCH_A(SPCH_A), .SPCH_D(SPCH_D), .vpw(vpw), .wp(lwp), .wd(lwd), .we(lwe));
 
+wire [8:0] hpos_lbuf_read = FLIP ? (HPOS + 9'd9) : HPOS;
+wire [8:0] hpos_lbuf_clear = HPOS;
+
+GAPLUS_SPRITE_LBUF lbuf( VCLK, vpw, lwe, lwp, lwd, hpos_lbuf_read, hpos_lbuf_clear, dout );
 assign CLUT_A = dout;
 
 endmodule
@@ -57,6 +61,7 @@ module GAPLUS_SPRITE_REND
 	input         vpr,
 	input  [28:0] spra0,
 	input  [23:0] spra1,
+	input         FLIP,
 	output        wrclk,
 	output  [5:0] wrrad,
 	output [14:0] SPCH_A,
@@ -71,21 +76,16 @@ module GAPLUS_SPRITE_REND
 reg  [7:0] phase;
 reg  [5:0] hc;
 
-wire       xf = spra0[16];
-wire       yf = spra0[17];
-
 wire       xs = spra0[19];
 wire       ys = spra0[21];
 
 wire       dp = spra0[23];
 
-wire [1:0] coffs  = dp ? 0 : { (~spra0[28])^((~yf)&ys), hc[4]^(xf&xs) };
-
-wire [8:0] chipno = { spra0[22], spra0[7:0] } + { 7'h0, coffs };
 wire [5:0] paltno = { spra1[5:0] };
+wire [8:0] chipno;
 
-wire [3:0] va = spra0[27:24]^{yf,yf,yf,yf};
-wire [1:0] pdp = ( hc[1:0]^{xf,xf} );
+wire xf = spra0[16] ^ FLIP;
+wire [1:0] pdp = (hc[1:0] ^ {2{xf}});
 
 wire [2:0] pixd = ( pdp == 0 ) ? { chipno[7] ? SPCH_D[11] : SPCH_D[15], SPCH_D[7], SPCH_D[3] } :
 						( pdp == 1 ) ? { chipno[7] ? SPCH_D[10] : SPCH_D[14], SPCH_D[6], SPCH_D[2] } :
@@ -94,6 +94,24 @@ wire [2:0] pixd = ( pdp == 0 ) ? { chipno[7] ? SPCH_D[11] : SPCH_D[15], SPCH_D[7
 
 assign		we = xs ? ( hc < 32 ) : ( hc < 16 );
 assign		wd = { paltno, pixd };
+wire yf_chip = spra0[17] ^ FLIP;
+wire yf_row  = spra0[17];
+wire [3:0] va = spra0[27:24]^{yf_row,yf_row,yf_row,yf_row};
+wire [8:0] spr_x_base = FLIP ? (spra1[16:8] - 75) : (spra1[16:8] - 88);
+wire [8:0] spr_x      = spr_x_base + hc;
+wire [8:0] spr_w_last = xs ? 9'd31 : 9'd15;
+wire [8:0] wp_base = FLIP ? (9'd287 - spr_x_base - spr_w_last) + hc : spr_x;
+wire is_enemy_expl = FLIP && !dp && xs && ys && paltno[5];
+wire is_player_beam = FLIP && !dp && ys && !xs && paltno[3] && !paltno[0];
+wire coffs_v_alt  = ( spra0[28]) ^ ((~yf_chip) & ys);
+wire coffs_lr = hc[4] ^ (xf & xs);
+wire [8:0] chip_base = { spra0[22], spra0[7:0] };
+wire beam_fix = FLIP && !dp && ys && !xs && paltno[3];
+wire coffs_v_norm = (~spra0[28]) ^ ((~yf_chip) & ys);
+wire coffs_v      = coffs_v_norm ^ is_enemy_expl ^ beam_fix;
+wire [1:0] coffs = dp ? 2'b00 : { coffs_v, coffs_lr };
+assign chipno = { spra0[22], spra0[7:0] } + { 7'h0, coffs };
+assign wp = FLIP ? (9'd287 - spr_x_base - spr_w_last) + hc : spr_x;
 
 reg hbedge2;
 always @ ( posedge VCLK ) begin
@@ -123,7 +141,6 @@ assign 		wrrad  = { vpr, phase[6:2] };
 assign      SPCH_A = { chipno, va[3], hc[3:2]^{2{xf}}, va[2:0] };
 
 assign      vpw = ~vpr;
-assign		wp = ( spra1[16:8] - 88 ) + hc;
 
 endmodule
 
@@ -135,6 +152,7 @@ module GAPLUS_SPRITE_REGSCAN
 	input			  VCLKx4,
 	input         HB,
 	input  [7:0]  VPOS,
+	input         FLIP,
 	output [6:0]  SPRA_A,
 	input [23:0]  SPRA_D,
 	output		  wwclk,
@@ -173,28 +191,28 @@ reg  [5:0] hramad;
 reg        wrwe0;
 
 //wire [8:0] nxt = nspra1[16:8] - 87;
-wire [7:0] nyt = nspra0[15:8] + 27;
 
+wire [7:0] nyt = nspra0[15:8] + 27;
 wire       nys = nspra0[21];
 wire [7:0] nvt = nvpos + nyt;
 wire       nvh = nys ? ( nvt[7:5] == 3'b111 ) : ( nvt[7:4] == 4'b1111 );
-
 wire       son = (~nspra1[17]) & ( nspra0[15:8] != 8'hF0 ) & ( nspra1[16:8] != 9'h00 );
-
 wire [11:0] _hcntx4 = hcntx4 - 32;
-
 wire			wrclr = ( hcntx4 < 32 );
 assign 		wwclk = VCLKx4;
-assign		wrwd0 = wrclr ? 0 : { nvt[4:0], nspra0 };
+assign      wrwd0 = wrclr ? 0 : { nvt[4:0], nspra0 };
+
 assign		wrwd1 = wrclr ? 0 : nspra1;
 assign		wrwad = wrclr ? { vpw, hcntx4[4:0] } : { vpw, hramad[4:0] };
 assign       wrwe = wrclr ? 1 : wrwe0;
+reg [7:0] nvpos_next;
 
 always @ ( posedge VCLKx4 ) begin
+nvpos_next <= FLIP ? (8'd217 - VPOS[7:0]) : VPOS[7:0];
 
 	if ( hcntx4 == 0 ) begin
 		hramad <= 0;
-		nvpos <= VPOS[7:0];
+		nvpos <= nvpos_next;
 		wrwe0 <= 0;
 	end
 	else begin
@@ -244,7 +262,7 @@ endmodule
 //----------------------------------------
 //  Line Double Buffer
 //----------------------------------------
-module GAPLUS_SPRITE_LBUF( CLK, SIDE1, WEN, ADRSW, IN, ADRSR, OUT );
+module GAPLUS_SPRITE_LBUF( CLK, SIDE1, WEN, ADRSW, IN, ADRSR, ADRSCLR, OUT );
 
 input				CLK;
 input				SIDE1;
@@ -252,6 +270,7 @@ input				WEN;
 input		[8:0]	ADRSW;
 input		[8:0]	IN;
 input		[8:0]	ADRSR;
+input 	[8:0] ADRSCLR;
 output	[8:0]	OUT;
 
 wire		[8:0]	OUT0, OUT1;
@@ -261,8 +280,8 @@ wire				OPAQUE = ( IN[2:0] != 0 );
 
 assign			OUT = SIDE1 ? OUT1 : OUT0;
 
-LINEBUF	buf0( CLK, SIDE0 ? 1 : ( WEN & SIDE1 & OPAQUE ), SIDE0 ? ADRSR-1 : ADRSW, SIDE0 ? 0 : IN, CLK, SIDE0, ADRSR, OUT0 );
-LINEBUF	buf1( CLK, SIDE1 ? 1 : ( WEN & SIDE0 & OPAQUE ), SIDE1 ? ADRSR-1 : ADRSW, SIDE1 ? 0 : IN, CLK, SIDE1, ADRSR, OUT1 );
+LINEBUF	buf0( CLK, SIDE0 ? 1 : ( WEN & SIDE1 & OPAQUE ), SIDE0 ? ADRSCLR-1 : ADRSW, SIDE0 ? 0 : IN, CLK, SIDE0, ADRSR, OUT0 );
+LINEBUF	buf1( CLK, SIDE1 ? 1 : ( WEN & SIDE0 & OPAQUE ), SIDE1 ? ADRSCLR-1 : ADRSW, SIDE1 ? 0 : IN, CLK, SIDE1, ADRSR, OUT1 );
 
 endmodule
 

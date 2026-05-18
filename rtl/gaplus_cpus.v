@@ -12,6 +12,7 @@ module GAPLUS_MAIN
 	input				MCPU_CLK,
 	input				RESET,
 	input				VBLK,
+	input				PAUSE,
 
 	input  [31:0]	INP0,
 	input  [31:0]	INP1,
@@ -36,6 +37,13 @@ module GAPLUS_MAIN
 	input	  [7:0]	ROMDT,
 	input				ROMEN
 );
+
+reg [1:0] pause_sync_m;
+always @(posedge MCPU_CLK or posedge RESET) begin
+  if (RESET) pause_sync_m <= 2'b00;
+  else       pause_sync_m <= { pause_sync_m[0], PAUSE };
+end
+wire PAUSE_M = pause_sync_m[1];
 
 wire [7:0]  mcpu_di;
 wire        mcpu_rw, mcpu_vma;
@@ -89,7 +97,7 @@ cpu6809 maincpu (
 	.address(mcpu_ma),
 	.data_in(mcpu_di),
 	.data_out(mcpu_do),
-	.halt(1'b0),
+	.halt(PAUSE_M),
 	.hold(1'b0),
 	.irq(mcpu_irq),
 	.firq(1'b0),
@@ -115,6 +123,7 @@ module GAPLUS_SUB
 	input SCPU_CLK,
 	input	RESET,
 	input VBLK,
+	input PAUSE,
 
 	input   [7:0] scpu_mr,
 	output [15:0] scpu_ma,
@@ -127,6 +136,13 @@ module GAPLUS_SUB
 	input	  [7:0]	ROMDT,
 	input				ROMEN
 );
+
+reg [1:0] pause_sync_s;
+always @(posedge SCPU_CLK or posedge RESET) begin
+  if (RESET) pause_sync_s <= 2'b00;
+  else       pause_sync_s <= { pause_sync_s[0], PAUSE };
+end
+wire PAUSE_S = pause_sync_s[1];
 
 wire [7:0]  scpu_di;
 wire        scpu_rw, scpu_vma;
@@ -163,7 +179,7 @@ cpu6809 subcpu (
 	.address(scpu_ma),
 	.data_in(scpu_di),
 	.data_out(scpu_do),
-	.halt(1'b0),
+	.halt(PAUSE_S),
 	.hold(1'b0),
 	.irq(scpu_irq),
 	.firq(1'b0),
@@ -192,8 +208,18 @@ module cpu6809
 
 // Phase Generator
 reg rE=1'b0, rQ=1'b0;
-always @(posedge clkx2) rQ <= ~rQ;
-always @(negedge clkx2) rE <= ~rE;
+
+always @(posedge clkx2 or posedge rst) begin
+  if (rst)       rQ <= 1'b0;
+  else if(!halt) rQ <= ~rQ;
+end
+
+always @(negedge clkx2 or posedge rst) begin
+  if (rst)       rE <= 1'b0;
+  else if(!halt) rE <= ~rE;
+end
+
+assign vma = rE;
 
 // CPU core
 mc6809i core (
@@ -203,7 +229,7 @@ mc6809i core (
 	.nDMABREQ(1'b1)
 );
 
-assign vma = rE;
+
 
 endmodule
 

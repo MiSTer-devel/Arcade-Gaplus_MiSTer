@@ -14,6 +14,8 @@ module FPGA_GAPLUS
 	output [11:0]	POUT,		// Pixel Color
 
 	output  [7:0]  SOUT,		// Sound Out
+	input          FLIP,
+	input          PAUSE,
 
 									// Sticks and Buttons (Active Logic)
 	input	  [4:0]	INP0,			// 1P {B1,L,D,R,U} 
@@ -77,6 +79,8 @@ wire		CPUCLK   = CLK1M60;
 wire		MCPU_CLK =  CPUCLKx2;
 wire		SCPU_CLK = ~CPUCLKx2;
 
+wire		MCPU_CLK_RUN = MCPU_CLK;
+wire		SCPU_CLK_RUN = SCPU_CLK;
 
 assign PCLK = VCLK_x1;
 
@@ -129,6 +133,8 @@ GAPLUS_VIDEO video
 
 	.PH(PH),.PV(PV),
 	.POUT(POUT),.VB(oVB),
+	.FLIP(FLIP),
+	.PAUSE(PAUSE),
 
 	.VRAM_A(vram_a), .VRAM_D(vram_d),
 	.SPRA_A(spra_a), .SPRA_D(spra_d),
@@ -151,7 +157,7 @@ wire        snd_we;
 
 GAPLUS_MAIN main
 (
-	MCPU_CLK, RESET, oVB,
+	MCPU_CLK_RUN, RESET, oVB, PAUSE,
 	INTF0, INTF1, INTF2,
 	mcpu_ma, mcpu_we, mcpu_do, mcpu_mr,
 	snd_we, snd_rd,
@@ -167,7 +173,7 @@ GAPLUS_MAIN main
 //----------------------------------------
 GAPLUS_SUB sub
 (
-	SCPU_CLK, SUB_RESET, oVB,
+	SCPU_CLK_RUN, SUB_RESET, oVB, PAUSE,
 	scpu_mr,
 	scpu_ma, scpu_we, scpu_do,
 
@@ -181,13 +187,14 @@ GAPLUS_SUB sub
 GAPLUS_SOUND sound
 (
 	SUB_RESET,
-	MCPU_CLK,
+	MCPU_CLK_RUN,
 	VCLK_x4,
 	oVB,
 	CLK50M, { 1'b0, mcpu_ma[9:0] }, mcpu_do, snd_rd, snd_we,
 	kick_explode,
 	SOUT,
 	~SUB_RESET,
+	PAUSE,
 	
 	ROMCL,ROMAD,ROMDT,ROMEN
 );
