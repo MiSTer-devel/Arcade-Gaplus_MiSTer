@@ -143,15 +143,12 @@ wire no_rotate = status[2] | direct_video;
 ///////////////////////////////////////////////////
 
 wire hblank, vblank;
-wire ce_vid;
 wire hs, vs;
 wire [3:0] r,g,b;
 
 reg ce_pix;
 always @(posedge clk_hdmi) begin
-	reg old_clk;
-	old_clk <= ce_vid;
-	ce_pix  <= old_clk & ~ce_vid;
+	ce_pix <= PCEN;   // direct register of the clean, non-edge-detected pulse
 end
 
 wire rotate_ccw = 0;
@@ -175,6 +172,7 @@ arcade_video #(288,12) arcade_video
 );
 
 wire			PCLK;
+wire			PCEN;
 wire  [8:0] HPOS,VPOS;
 wire [11:0] POUT;
 HVGEN hvgen
@@ -182,7 +180,6 @@ HVGEN hvgen
 	.HPOS(HPOS),.VPOS(VPOS),.PCLK(PCLK),.iRGB(POUT),
 	.oRGB({b,g,r}),.HBLK(hblank),.VBLK(vblank),.HSYN(hs),.VSYN(vs)
 );
-assign ce_vid = PCLK;
 
 
 wire [15:0] AOUT;
@@ -245,7 +242,7 @@ wire  [7:0] oSND;
 
 FPGA_GAPLUS GameCore ( 
 	.RESET(iRST),.MCLK(clk_48M),
-	.PH(HPOS),.PV(VPOS),.PCLK(PCLK),.POUT(POUT),
+	.PH(HPOS),.PV(VPOS),.PCLK(PCLK),.PCEN(PCEN),.POUT(POUT),
 	.SOUT(oSND),
 	.FLIP(bFlip),
 	.PAUSE(pause_req),
@@ -284,14 +281,14 @@ assign VPOS = vcnt;
 always @(posedge PCLK) begin
 	case (hcnt)
 		  0: begin HBLK <= 0; hcnt <= hcnt+1; end
-		289: begin HBLK <= 1; hcnt <= hcnt+1; end
+		288: begin HBLK <= 1; hcnt <= hcnt+1; end
 		311: begin HSYN <= 0; hcnt <= hcnt+1; end
 		342: begin HSYN <= 1; hcnt <= 471;    end
 		511: begin hcnt <= 0;
 			case (vcnt)
 				223: begin VBLK <= 1; vcnt <= vcnt+1; end
 				235: begin VSYN <= 0; vcnt <= vcnt+1; end
-				242: begin VSYN <= 1; vcnt <= 492;	  end
+				242: begin VSYN <= 1; vcnt <= 491;	  end
 				511: begin VBLK <= 0; vcnt <= 0;		  end
 				default: vcnt <= vcnt+1;
 			endcase

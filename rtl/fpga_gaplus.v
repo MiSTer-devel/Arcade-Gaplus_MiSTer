@@ -11,6 +11,7 @@ module FPGA_GAPLUS
 	input	  [8:0]	PH,		// Screen H
 	input	  [8:0]	PV,		// Screen V
 	output			PCLK,		// Pixel Clock
+	output			PCEN,		// Pixel Clock Enable (clean decode of CLKS, not edge-detected)
 	output [11:0]	POUT,		// Pixel Color
 
 	output  [7:0]  SOUT,		// Sound Out
@@ -83,6 +84,7 @@ wire		MCPU_CLK_RUN = MCPU_CLK;
 wire		SCPU_CLK_RUN = SCPU_CLK;
 
 assign PCLK = VCLK_x1;
+assign PCEN = (CLKS[2:0] == 3'b000);	// one MCLK-wide pulse each PCLK period, phase-locked to PCLK
 
 
 //----------------------------------------
