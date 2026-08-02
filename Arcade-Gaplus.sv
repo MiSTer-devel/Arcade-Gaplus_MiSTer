@@ -284,14 +284,14 @@ assign VPOS = vcnt;
 always @(posedge PCLK) begin
 	case (hcnt)
 		  0: begin HBLK <= 0; hcnt <= hcnt+1; end
-		289: begin HBLK <= 1; hcnt <= hcnt+1; end
+		288: begin HBLK <= 1; hcnt <= hcnt+1; end
 		311: begin HSYN <= 0; hcnt <= hcnt+1; end
 		342: begin HSYN <= 1; hcnt <= 471;    end
 		511: begin hcnt <= 0;
 			case (vcnt)
 				223: begin VBLK <= 1; vcnt <= vcnt+1; end
 				235: begin VSYN <= 0; vcnt <= vcnt+1; end
-				242: begin VSYN <= 1; vcnt <= 492;	  end
+				242: begin VSYN <= 1; vcnt <= 491;	  end
 				511: begin VBLK <= 0; vcnt <= 0;		  end
 				default: vcnt <= vcnt+1;
 			endcase
