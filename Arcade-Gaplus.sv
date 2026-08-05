@@ -193,7 +193,23 @@ assign AUDIO_S = 0; // unsigned PCM
 
 ///////////////////////////////////////////////////
 
-wire iRST = RESET | status[0] | buttons[1] | ioctl_download;
+// Reset extender.
+//
+// Releasing reset on the same cycle the ROM download finishes leaves no
+// margin for the last writes into the download RAMs to settle, and lets
+// the game core start at an arbitrary point relative to its own divided
+// clocks.  Stretching the release by ~1.3ms makes cold start-up
+// repeatable; the release is then retimed into each clock domain by the
+// reset_sync instances inside the core.
+wire rst_src = RESET | status[0] | buttons[1] | ioctl_download;
+
+reg [15:0] rst_cnt = 16'hFFFF;
+always @(posedge clk_sys) begin
+	if (rst_src)       rst_cnt <= 16'hFFFF;
+	else if (|rst_cnt) rst_cnt <= rst_cnt - 1'b1;
+end
+
+wire iRST = |rst_cnt;
 
 reg pause_btn_d;
 reg pause_latch;
