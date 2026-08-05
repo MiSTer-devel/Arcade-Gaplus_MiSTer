@@ -1,4 +1,23 @@
 
+module reset_sync
+(
+    input  clk,
+    input  arst,
+    output rst_o
+);
+
+reg [1:0] q = 2'b11;
+
+always @( posedge clk or posedge arst ) begin
+    if ( arst ) q <= 2'b11;
+    else        q <= { q[0], 1'b0 };
+end
+
+assign rst_o = q[1];
+
+endmodule
+
+
 module busdriver
 (
     input iENABLE,

@@ -193,7 +193,15 @@ assign AUDIO_S = 0; // unsigned PCM
 
 ///////////////////////////////////////////////////
 
-wire iRST = RESET | status[0] | buttons[1] | ioctl_download;
+wire rst_src = RESET | status[0] | buttons[1] | ioctl_download;
+
+reg [15:0] rst_cnt = 16'hFFFF;
+always @(posedge clk_sys) begin
+	if (rst_src)       rst_cnt <= 16'hFFFF;
+	else if (|rst_cnt) rst_cnt <= rst_cnt - 1'b1;
+end
+
+wire iRST = |rst_cnt;
 
 reg pause_btn_d;
 reg pause_latch;

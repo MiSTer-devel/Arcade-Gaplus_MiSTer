@@ -38,10 +38,14 @@ module GAPLUS_MAIN
 	input				ROMEN
 );
 
+wire RESET_M, RESET_M_N;
+reset_sync rsync_m_neg(  MCPU_CLK, RESET, RESET_M   );
+reset_sync rsync_m_pos( ~MCPU_CLK, RESET, RESET_M_N );
+
 reg [1:0] pause_sync_m;
-always @(posedge MCPU_CLK or posedge RESET) begin
-  if (RESET) pause_sync_m <= 2'b00;
-  else       pause_sync_m <= { pause_sync_m[0], PAUSE };
+always @(posedge MCPU_CLK or posedge RESET_M_N) begin
+  if (RESET_M_N) pause_sync_m <= 2'b00;
+  else           pause_sync_m <= { pause_sync_m[0], PAUSE };
 end
 wire PAUSE_M = pause_sync_m[1];
 
@@ -69,8 +73,8 @@ wire	 mcpu_irq = (~mirq_en) & VBLK;
 reg 	 _SUBRESET = 1'b1;
 assign SUB_RESET = _SUBRESET;
 
-always @ ( negedge MCPU_CLK or posedge RESET ) begin
-	if ( RESET ) begin
+always @ ( negedge MCPU_CLK or posedge RESET_M ) begin
+	if ( RESET_M ) begin
 		_SUBRESET <= 1;
 		mirq_en   <= 1;
 	end else begin
@@ -137,10 +141,14 @@ module GAPLUS_SUB
 	input				ROMEN
 );
 
+wire RESET_S, RESET_S_N;
+reset_sync rsync_s_neg(  SCPU_CLK, RESET, RESET_S   );
+reset_sync rsync_s_pos( ~SCPU_CLK, RESET, RESET_S_N );
+
 reg [1:0] pause_sync_s;
-always @(posedge SCPU_CLK or posedge RESET) begin
-  if (RESET) pause_sync_s <= 2'b00;
-  else       pause_sync_s <= { pause_sync_s[0], PAUSE };
+always @(posedge SCPU_CLK or posedge RESET_S_N) begin
+  if (RESET_S_N) pause_sync_s <= 2'b00;
+  else           pause_sync_s <= { pause_sync_s[0], PAUSE };
 end
 wire PAUSE_S = pause_sync_s[1];
 
@@ -163,8 +171,8 @@ assign scpu_we =  scpu_mram_cs & scpu_wr;
 reg	sirq_en  = 1'b1;
 wire	scpu_irq = (~sirq_en) & VBLK;
 
-always @ ( negedge SCPU_CLK or posedge RESET ) begin
-	if ( RESET ) begin
+always @ ( negedge SCPU_CLK or posedge RESET_S ) begin
+	if ( RESET_S ) begin
 		sirq_en <= 1'b1;
 	end else begin
 		if ( scpu_irqe_cs ) sirq_en <= (~scpu_ma[0]);
@@ -206,16 +214,23 @@ module cpu6809
 	input				nmi
 );
 
+reg [1:0] rsync = 2'b11;
+always @(negedge clkx2 or posedge rst) begin
+  if (rst) rsync <= 2'b11;
+  else     rsync <= { rsync[0], 1'b0 };
+end
+wire irst = rsync[1];
+
 // Phase Generator
 reg rE=1'b0, rQ=1'b0;
 
-always @(posedge clkx2 or posedge rst) begin
-  if (rst)       rQ <= 1'b0;
+always @(posedge clkx2) begin
+  if (irst)      rQ <= 1'b0;
   else if(!halt) rQ <= ~rQ;
 end
 
-always @(negedge clkx2 or posedge rst) begin
-  if (rst)       rE <= 1'b0;
+always @(negedge clkx2) begin
+  if (irst)      rE <= 1'b0;
   else if(!halt) rE <= ~rE;
 end
 
@@ -225,7 +240,7 @@ assign vma = rE;
 mc6809i core (
 	.D(data_in),.DOut(data_out),.ADDR(address),.RnW(rw),.E(rE),.Q(rQ),
 	.nIRQ(~irq),.nFIRQ(~firq),.nNMI(~nmi),
-	.nHALT(~halt),.nRESET(~rst),
+	.nHALT(~halt),.nRESET(~irst),
 	.nDMABREQ(1'b1)
 );
 

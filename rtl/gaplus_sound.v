@@ -30,10 +30,14 @@ module GAPLUS_SOUND
 	input	  [7:0]	ROMDT,
 	input				ROMEN
 );
+wire RESET_SND, RESET_24;
+reset_sync rsync_snd(  CPUCLK, RESET, RESET_SND );
+reset_sync rsync_24 ( ~CLK24M, RESET, RESET_24  );
+
 reg [1:0] pause_sync24;
-always @(posedge CLK24M or posedge RESET) begin
-  if (RESET) pause_sync24 <= 2'b00;
-  else       pause_sync24 <= { pause_sync24[0], PAUSE };
+always @(posedge CLK24M or posedge RESET_24) begin
+  if (RESET_24) pause_sync24 <= 2'b00;
+  else          pause_sync24 <= { pause_sync24[0], PAUSE };
 end
 wire PAUSE24 = pause_sync24[1];
 
@@ -68,8 +72,8 @@ wire				SNDCPU_IRQ    = VB & ( ~SNDCPU_IRQEN );
 
 wire				SNDCPU_IRQWE  = ( sndirq_cs & SNDCPU_WE );
 
-always @( negedge CPUCLK or posedge RESET ) begin
-	if ( RESET ) begin
+always @( negedge CPUCLK or posedge RESET_SND ) begin
+	if ( RESET_SND ) begin
 		SNDCPU_IRQEN <= 1'b1;
 	end
 	else begin
